@@ -1,0 +1,221 @@
+---
+title: "dataframe"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(ggplot2, dplyr, RMySQL, lubridate, psych, tidyr, plotly)
+
+## Create a database connection 
+con = dbConnect(MySQL(), user='deepAnalytics', password='Sqltask1234!', dbname='dataanalytics2018', host='data-analytics-2018.cbrosir2cswx.us-east-1.rds.amazonaws.com')
+
+## List the tables contained in the database 
+dbListTables(con)
+
+
+#IRIS
+#List the attributes in the table Iris
+dbListFields(con,'iris')
+
+#Query from Iris -> Select all
+irisALL <- dbGetQuery(con, "SELECT * FROM iris")
+
+#Query from Iris -> Select two attributes
+irisSELECT <- dbGetQuery(con, "SELECT SepalLengthCm, SepalWidthCm FROM iris")
+
+
+#YR_2006
+
+#List the attributes from yr_2006 table
+dbListFields(con,'yr_2006')
+
+#Query
+#es posible hacer algo asi? vars <- c('Date', 'Time', 'Sub_metering_1', 'Sub_metering_2', 'Sub_metering_3')
+yr_2006 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2006")
+yr_2007 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2007")
+yr_2008 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2008")
+yr_2009 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2009")
+yr_2010 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2010")
+
+
+str(yr_2006)
+str(yr_2007)
+str(yr_2008)
+str(yr_2009)
+str(yr_2010)
+
+
+summary(yr_2006)
+summary(yr_2007)
+summary(yr_2008)
+summary(yr_2009)
+summary(yr_2010)
+
+head(yr_2006)
+head(yr_2007)
+head(yr_2008)
+head(yr_2009)
+head(yr_2010)
+
+tail(yr_2006)
+tail(yr_2007)
+tail(yr_2008)
+tail(yr_2009)
+tail(yr_2010)
+
+#Combine tables into one dataframe
+All_Years <- bind_rows(yr_2007, yr_2008, yr_2009, yr_2010)
+
+summary(All_Years)
+
+
+
+
+#PREPROCESSING
+
+## Combine Date and Time attribute values in a new attribute column with Paste
+dataByYears <-cbind(All_Years,paste(All_Years$Date,All_Years$Time), stringsAsFactors=FALSE)
+
+## Give the new attribute in the 6th column a header name change the name
+colnames(dataByYears)[6] <-"DateTime"
+
+## And move the DateTime attribute within the dataset
+dataByYears <- dataByYears[,c(ncol(dataByYears), 1:(ncol(dataByYears)-1))]
+head(dataByYears)
+
+## Convert DateTime from POSIXlt to POSIXct 
+dataByYears$DateTime <- as.POSIXct(dataByYears$DateTime, "%Y/%m/%d %H:%M:%S")
+
+
+## Add the time zone
+attr(dataByYears$DateTime, "tzone") <- "GMT+0"
+
+## Inspect the data types
+str(dataByYears)
+
+#Separate daytime in different attributes
+dataByYears$year <- year(dataByYears$DateTime)
+dataByYears$month <- month(dataByYears$DateTime)
+dataByYears$weekday <- weekdays(dataByYears$DateTime)
+dataByYears$day <- day(dataByYears$DateTime)
+dataByYears$hour <- hour(dataByYears$DateTime)
+dataByYears$minute <- minute(dataByYears$DateTime)
+
+
+
+#EXPLORATION OF THE DATA. First approach
+ summary(dataByYears) 
+ describe(dataByYears) #from the psych package
+
+#QQNorm
+qqnorm(dataByYears$Sub_metering_1)
+qqnorm(dataByYears$Sub_metering_2)
+qqnorm(dataByYears$Sub_metering_3)
+
+ #Look for NAs
+ summary(is.na(dataByYears))
+ 
+ #Rename
+ #dataByYears %>% rename( Kitchen = Sub_metering_1, Laundry = Sub_metering_2, AC_Heater = Sub_metering_3) dplyer
+
+names(dataByYears)[names(dataByYears) == "Sub_metering_1"] <- "Kitchen"
+names(dataByYears)[names(dataByYears) == "Sub_metering_2"] <- "Laundry"
+names(dataByYears)[names(dataByYears) == "Sub_metering_3"] <- "AC_Heater"
+ 
+ #GATHERING ALL SUB_METERINGS
+ sub_meterings_All <- dataByYears %>% gather(Sub_metering, Value, Kitchen:AC_Heater)
+ 
+ #VISUALIZATIONS. First approach
+ 
+ #1Var
+ #One Sub_metering at a time
+ 
+ #Histograms
+ hist(dataByYears$Kitchen)
+ hist(dataByYears$Laundry)
+ hist(dataByYears$AC_Heater)
+ 
+ #BoxPlots
+ boxplot(Kitchen~year,data=dataByYears) 
+ boxplot(Laundry~year,data=dataByYears) 
+ boxplot(AC_Heater~year,data=dataByYears) 
+ 
+ 
+ #2Vars
+ #Sub_meterings and Years
+ 
+ #Boxplots
+ ggplot(sub_meterings_All, aes(Sub_metering, Value )) + geom_boxplot() + coord_flip() + facet_grid(.~year)
+ 
+ #Histograms
+ ggplot(sub_meterings_All, aes(Value, fill = Sub_metering)) +  geom_histogram(alpha = 0.5, aes(y = ..density..), position = 'identity')
+ 
+ #Density
+ ggplot(sub_meterings_All, aes(Value, fill = Sub_metering)) + geom_density(alpha = 0.2)
+ 
+ 
+ #qqPlot(lm(prestige ~ income + education + type, data=Duncan),envelope=.99)
+ 
+ 
+ #EXPLORATION OF THE DATA. Second approach
+ 
+ Values_n <-  sub_meterings_All %>% group_by(Value) %>% summarise (n = n()) %>% mutate(freq = n / sum(n))
+ 
+ Values_not_0 <-  sub_meterings_All %>% group_by(Value) %>% filter(Value!=0)
+ Values_not_0_n <-  Values_not_0 %>% group_by(Value) %>% summarise (n = n()) %>% mutate(freq = n / sum(n))
+ Values_not_0_1 <-  sub_meterings_All %>% group_by(Value) %>% filter(Value>1)
+ Values_not_0_1_n <-  Values_not_0_1 %>% group_by(Value) %>% summarise (n = n()) %>% mutate(freq = n / sum(n))
+ Values_not_0_1_n
+ 
+ 
+ 
+ 
+#VISUALIZATIONS. Second approach
+#2Vars
+ #Sub_meterings and Years
+ 
+ #Boxplots
+ ggplot(Values_not_0, aes(Sub_metering, Value )) + geom_boxplot() + coord_flip() + facet_grid(.~year)
+ 
+ #Histograms
+ ggplot(Values_not_0, aes(Value, fill = Sub_metering)) +  geom_histogram(alpha = 0.5, aes(y = ..density..), position = 'identity')
+ 
+ #Density
+ ggplot(Values_not_0, aes(Value, fill = Sub_metering)) + geom_density(alpha = 0.2)
+ 
+ #VISUALIZATIONS. Third approach
+#2Vars
+ #Sub_meterings and Years
+ 
+ #Boxplots
+ ggplot(Values_not_0_1, aes(Sub_metering, Value )) + geom_boxplot() + coord_flip() + facet_grid(.~year)
+ 
+ #Histograms
+ ggplot_0_50_non_0_1 <-  ggplot(Values_not_0_1, aes(Value, fill = Sub_metering)) +  geom_histogram(bin=50, stat="count") 
+ 
+ ggplot_0_50_non_0_1 %>%  ggplotly()
+ 
+ #convert as factor?
+ Values_not_0_1$Value = as.factor(Values_not_0_1$Value)
+ 
+ #Density
+ ggplot(Values_not_0_1, aes(Value, fill = Sub_metering)) + geom_density(alpha = 0.2)
+ 
+ #remove scientific notation in r
+ options(scipen=999)
+ #scale x breaks, xlim
+ 
+ 
+ 
+ #PEAKS
+ 
+ #I found that there is a peak in AC_Heater in 18 watts/hour. Also 17 and 19 are hight, so that might correspond to the oscillation of watts in the turning on and off. 
+
+ # 
+ 
+ 
+```
