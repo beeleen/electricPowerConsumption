@@ -1,0 +1,152 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+pacman::p_load(ggplot2, dplyr, RMySQL, lubridate, psych, tidyr, plotly)
+options(scipen=999)
+
+## Create a database connection 
+con = dbConnect(MySQL(), user='deepAnalytics', password='Sqltask1234!', dbname='dataanalytics2018', host='data-analytics-2018.cbrosir2cswx.us-east-1.rds.amazonaws.com')
+
+#Query 
+yr_2006 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2006")
+yr_2007 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2007")
+yr_2008 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2008")
+yr_2009 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2009")
+yr_2010 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2010")
+
+#Combine tables into one dataframe
+All_Years <- bind_rows(yr_2007, yr_2008, yr_2009, yr_2010)
+
+
+
+#PREPROCESSING
+
+## Combine Date and Time attribute values in a new attribute column with Paste
+All_Years <-cbind(All_Years,paste(All_Years$Date,All_Years$Time), stringsAsFactors=FALSE)
+
+## Give the new attribute in the 6th column a header name change the name
+colnames(All_Years)[6] <-"DateTime"
+
+## And move the DateTime attribute within the dataset
+All_Years <- All_Years[,c(ncol(All_Years), 1:(ncol(All_Years)-1))]
+
+## Convert DateTime from POSIXlt to POSIXct 
+All_Years$DateTime <- as.POSIXct(All_Years$DateTime, "%Y/%m/%d %H:%M:%S")
+
+## Add the time zone
+attr(All_Years$DateTime, "tzone") <- "GMT+0"
+
+#Separate daytime in different attributes
+All_Years$year <- year(All_Years$DateTime)
+All_Years$month <- month(All_Years$DateTime)
+All_Years$weekday <- weekdays(All_Years$DateTime)
+All_Years$day <- day(All_Years$DateTime)
+All_Years$hour <- hour(All_Years$DateTime)
+All_Years$minute <- minute(All_Years$DateTime)
+
+#Rename Sub_meterings columns
+names(All_Years)[names(All_Years) == "Sub_metering_1"] <- "Kitchen"
+names(All_Years)[names(All_Years) == "Sub_metering_2"] <- "Laundry"
+names(All_Years)[names(All_Years) == "Sub_metering_3"] <- "AC_Heater"
+
+
+ #Gather all sub_meterings in two attributes (Submetering - Value)
+All_Years_Comb_Submeterings <- All_Years %>% gather(Sub_metering, Value, Kitchen:AC_Heater)
+
+
+
+#EXPLORATION OF THE DATA
+
+#How many different values we have for the total sub_meterings?
+Values_n <-  All_Years_Comb_Submeterings %>% group_by(Value) %>% summarise (n = n()) %>% mutate(freq = n / sum(n))
+ 
+#There are 88 different values. 
+
+#Can we convert those values as Factors?
+All_Years_Comb_Submeterings$Value = as.factor(All_Years_Comb_Submeterings$Value)
+
+#Visualize the distribution of the Values
+Values_n_plot <- ggplot(data=Values_n) + geom_col(mapping = aes(x=Value, y=n))
+Values_n_plot %>%  ggplotly()
+
+#If we group the values we will find a normal distribution for each group: 
+#[0, 1, 2], [17, 18, 19], [36, 37,38, 39]
+#[11,12,13], [28,29,30]
+
+#That means that we have settled values and not much oscillation.
+#Now let's try to find out from which sub_metering those peaks belong.
+
+#Histogram of Values for each sub_metering 
+Plot_All_Years_Comb_Submeterings <-  ggplot(All_Years_Comb_Submeterings, aes(Value, fill = Sub_metering)) +  geom_bar() 
+
+Plot_All_Years_Comb_Submeterings %>%  ggplotly()
+
+#Histograms of the three submetertings
+ hist(All_Years$Kitchen)
+ hist(All_Years$Laundry)
+ hist(All_Years$AC_Heater)
+ 
+ #BoxPlots of the three submeterings
+ boxplot(Kitchen~year,data=All_Years) 
+ boxplot(Laundry~year,data=All_Years) 
+ boxplot(AC_Heater~year,data=All_Years) 
+ 
+
+  
+ ggplot(All_Years_Comb_Submeterings, aes(Sub_metering, Value )) + geom_boxplot() + coord_flip() + facet_grid(.~year)
+ 
+#Statistics
+summary(All_Years) 
+describe(All_Years) 
+ 
+#We see that we have a lot of 0's. Whath is the influence of the low values in the total? In terms of mean? 
+ 
+#What if i remove those low values?
+All_Years_Greater_2 <- All_Years %>% filter(Kitchen>2, Laundry>2, AC_Heater>2)
+summary(All_Years_Greater_2) 
+describe(All_Years_Greater_2) 
+
+#Are there any NAs?
+ summary(is.na(All_Years))
+ 
+ #Calculate the Totals
+ 
+ All_years_by_year_hour <- All_Years %>% group_by(year, hour) 
+ #%>% summarise(Total_Kitchen=sum(Kitchen), Total_Laundry=sum(Laundry), Total_AC_Heater=sum(AC_Heater))
+ 
+ 
+All_years_mean_by_year_hour <- All_Years %>% group_by(year, hour) %>% summarise(Mean_Kitchen=mean(Kitchen), Mean_Laundry=mean(Laundry), Mean_AC_Heater=mean(AC_Heater))
+ 
+
+
+ 
+ #Plot the mean of submeterings by year
+  ggplot(All_years_mean_by_year_hour, aes(x = hour)) +
+ geom_line(aes(y = Mean_Kitchen, col = "Mean_Kitchen")) + geom_point((aes(y= Mean_Kitchen, col = "Mean_Kitchen"))) +
+ geom_line(aes(y = Mean_Laundry, col = "Mean_Laundry")) + geom_point((aes(y= Mean_Laundry, col = "Mean_Laundry"))) +
+ geom_line(aes(y = Mean_AC_Heater, col = "Mean_AC_Heater")) +
+ geom_point((aes(y= Mean_AC_Heater, col = "Mean_AC_Heater"))) +
+ scale_x_continuous(breaks = c(1:24), labels = c(1:24), limits = c(1,24)) +
+ ylab("Energy consumtion") + facet_wrap(~year, scales = "free_x")
+ 
+  
+ #Plot the mean of submeterings by year. Exclude watts below 2
+ All_Years %>% group_by(year, hour) %>% filter(Kitchen>2, Laundry>2, AC_Heater>2) %>% summarise(Mean_Kitchen=mean(Kitchen), Mean_Laundry=mean(Laundry), Mean_AC_Heater=mean(AC_Heater)) %>% ggplot( aes(x = hour)) +
+ geom_line(aes(y = Mean_Kitchen, col = "Mean_Kitchen")) + geom_point((aes(y= Mean_Kitchen, col = "Mean_Kitchen"))) +
+ geom_line(aes(y = Mean_Laundry, col = "Mean_Laundry")) + geom_point((aes(y= Mean_Laundry, col = "Mean_Laundry"))) +
+ geom_line(aes(y = Mean_AC_Heater, col = "Mean_AC_Heater")) +
+ geom_point((aes(y= Mean_AC_Heater, col = "Mean_AC_Heater"))) +
+ scale_x_continuous(breaks = c(1:24), labels = c(1:24), limits = c(1,24)) +
+ ylab("Energy consumtion") + facet_wrap(~year, scales = "free_x")
+ 
+ All_Years_Comb_Submeterings %>% group_by(day) %>%ggplot(aes(x=day,y=Value)) +  geom_col() 
+ 
+```

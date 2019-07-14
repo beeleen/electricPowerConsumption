@@ -9,7 +9,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 pacman::p_load(ggplot2, dplyr, RMySQL, lubridate, psych, tidyr, plotly)
-
+options(scipen=999)
 ## Create a database connection 
 con = dbConnect(MySQL(), user='deepAnalytics', password='Sqltask1234!', dbname='dataanalytics2018', host='data-analytics-2018.cbrosir2cswx.us-east-1.rds.amazonaws.com')
 
@@ -187,28 +187,39 @@ names(dataByYears)[names(dataByYears) == "Sub_metering_3"] <- "AC_Heater"
  #Density
  ggplot(Values_not_0, aes(Value, fill = Sub_metering)) + geom_density(alpha = 0.2)
  
- #VISUALIZATIONS. Third approach
+ #VISUALIZATIONS. Second approach. B
 #2Vars
  #Sub_meterings and Years
  
  #Boxplots
  ggplot(Values_not_0_1, aes(Sub_metering, Value )) + geom_boxplot() + coord_flip() + facet_grid(.~year)
- 
+
+  
  #Histograms
- ggplot_0_50_non_0_1 <-  ggplot(Values_not_0_1, aes(Value, fill = Sub_metering)) +  geom_histogram(bin=50, stat="count") 
+ ggplot_0_50_non_0_1 <-  ggplot(Values_not_0_1, aes(Value, fill = Sub_metering)) +  geom_histogram() 
  
- ggplot_0_50_non_0_1 %>%  ggplotly()
- 
- #convert as factor?
- Values_not_0_1$Value = as.factor(Values_not_0_1$Value)
+
  
  #Density
  ggplot(Values_not_0_1, aes(Value, fill = Sub_metering)) + geom_density(alpha = 0.2)
  
  #remove scientific notation in r
- options(scipen=999)
+ 
  #scale x breaks, xlim
  
+ 
+ 
+ #EXPLORATION OF THE DATA. Thirg approach
+
+ 
+  #convert as factor
+ Values_not_0_1$Value = as.factor(Values_not_0_1$Value)
+ 
+  
+ #Histograms
+ ggplot_0_50_non_0_1 <-  ggplot(Values_not_0_1, aes(Value, fill = Sub_metering)) +  geom_histogram(bin=50, stat="count") 
+ 
+ ggplot_0_50_non_0_1 %>%  ggplotly()
  
  
  #PEAKS
