@@ -9,7 +9,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 
-pacman::p_load(ggplot2, dplyr, RMySQL, lubridate, psych, tidyr, plotly)
+pacman::p_load(ggplot2, dplyr, RMySQL, lubridate, psych, tidyr, plotly, padr, imputeTS, fpp2)
+
+#remove scientific notation in r
 options(scipen=999)
 
 ## Create a database connection 
@@ -62,7 +64,10 @@ names(All_Years)[names(All_Years) == "Sub_metering_3"] <- "AC_Heater"
 All_Years_Comb_Submeterings <- All_Years %>% gather(Sub_metering, Value, Kitchen:AC_Heater)
 
 
+```
 
+
+```{r}
 #EXPLORATION OF THE DATA
 
 #How many different values we have for the total sub_meterings?
@@ -107,8 +112,9 @@ Plot_All_Years_Comb_Submeterings %>%  ggplotly()
 summary(All_Years) 
 describe(All_Years) 
  
-#We see that we have a lot of 0's. Whath is the influence of the low values in the total? In terms of mean? 
+#We see that we have a lot of 0's. Which is the influence of the low values in the total? In terms of mean? 
  
+#REEEMOVEE
 #What if i remove those low values?
 All_Years_Greater_2 <- All_Years %>% filter(Kitchen>2, Laundry>2, AC_Heater>2)
 summary(All_Years_Greater_2) 
@@ -117,25 +123,36 @@ describe(All_Years_Greater_2)
 #Are there any NAs?
  summary(is.na(All_Years))
  
- #Calculate the Totals
  
- All_years_by_year_hour <- All_Years %>% group_by(year, hour) 
- #%>% summarise(Total_Kitchen=sum(Kitchen), Total_Laundry=sum(Laundry), Total_AC_Heater=sum(AC_Heater))
+```
+
+```{R} 
+
+#EXPLORATION OF THE DATA. PLOTS
  
+# Sum
  
-All_years_mean_by_year_hour <- All_Years %>% group_by(year, hour) %>% summarise(Mean_Kitchen=mean(Kitchen), Mean_Laundry=mean(Laundry), Mean_AC_Heater=mean(AC_Heater))
+All_Years %>% group_by(year, hour) %>% summarise(Total_Kitchen=sum(Kitchen), Total_Laundry=sum(Laundry), Total_AC_Heater=sum(AC_Heater)) %>% ggplot(aes(x = hour)) +
+ geom_line(aes(y = Total_Kitchen, col = "Total_Kitchen")) + geom_point((aes(y= Total_Kitchen, col = "Total_Kitchen"))) +
+ geom_line(aes(y = Total_Laundry, col = "Total_Laundry")) + geom_point((aes(y= Total_Laundry, col = "Total_Laundry"))) +
+ geom_line(aes(y = Total_AC_Heater, col = "Total_AC_Heater")) +
+ geom_point((aes(y= Total_AC_Heater, col = "Total_AC_Heater"))) +
+ scale_x_continuous(breaks = c(1:24), labels = c(1:24), limits = c(1,24)) +
+ ylab("Energy consumtion") + facet_wrap(~year, scales = "free_x")
  
 
-
- 
- #Plot the mean of submeterings by year
-  ggplot(All_years_mean_by_year_hour, aes(x = hour)) +
+#Mean
+All_years_mean_by_year_hour <- All_Years %>% group_by(year, hour) %>% summarise(Mean_Kitchen=mean(Kitchen), Mean_Laundry=mean(Laundry), Mean_AC_Heater=mean(AC_Heater)) %>% ggplot(aes(x = hour)) +
  geom_line(aes(y = Mean_Kitchen, col = "Mean_Kitchen")) + geom_point((aes(y= Mean_Kitchen, col = "Mean_Kitchen"))) +
  geom_line(aes(y = Mean_Laundry, col = "Mean_Laundry")) + geom_point((aes(y= Mean_Laundry, col = "Mean_Laundry"))) +
  geom_line(aes(y = Mean_AC_Heater, col = "Mean_AC_Heater")) +
  geom_point((aes(y= Mean_AC_Heater, col = "Mean_AC_Heater"))) +
  scale_x_continuous(breaks = c(1:24), labels = c(1:24), limits = c(1,24)) +
  ylab("Energy consumtion") + facet_wrap(~year, scales = "free_x")
+ 
+
+
+  
  
   
  #Plot the mean of submeterings by year. Exclude watts below 2
@@ -147,6 +164,106 @@ All_years_mean_by_year_hour <- All_Years %>% group_by(year, hour) %>% summarise(
  scale_x_continuous(breaks = c(1:24), labels = c(1:24), limits = c(1,24)) +
  ylab("Energy consumtion") + facet_wrap(~year, scales = "free_x")
  
- All_Years_Comb_Submeterings %>% group_by(day) %>%ggplot(aes(x=day,y=Value)) +  geom_col() 
  
+ #?
+ All_Years_Comb_Submeterings %>% group_by(day) %>%ggplot(aes(x=day,y=Value)) +  geom_col() 
+
+ 
+ #MISSING ROWS
+ 
+ All_Years_PAD <- All_Years
+ All_Years_PAD$DateTime %>% get_interval()
+
+
+ 
+
+ 
+
+ 
+   #missing rows by week = 0 and by month = 0 
+ 
+ All_Years_PAD_month <- All_Years_PAD  %>% select(DateTime, Kitchen) %>% thicken('month') %>% group_by(DateTime_month) %>%  summarise(Kitchen_No = sum(Kitchen)) %>% pad()
+ 
+ summary(is.na(All_Years_PAD_month)) #but we know that there is a missing month, which is december 2010
+  
+  #missing rows by day = 9
+ 
+ All_Years_PAD_day <- All_Years_PAD  %>% select(DateTime, Kitchen) %>% thicken('day') %>% group_by(DateTime_day) %>%  summarise(Kitchen_No = sum(Kitchen)) %>% pad()
+ 
+ summary(is.na(All_Years_PAD_day))
+ 
+  #missing rows by hour = 421
+ All_Years_PAD_hour <- All_Years_PAD  %>% select(DateTime, Kitchen) %>% thicken('hour') %>% group_by(DateTime_hour) %>%  summarise(Kitchen_No = sum(Kitchen)) %>% pad()
+ 
+ summary(is.na(All_Years_PAD_hour))
+ 
+ 
+ 
+  
+#missing rows by minute = 25975
+     All_Years_PAD_min <- All_Years_PAD %>% pad(by="DateTime", break_above = 3)
+     summary(is.na(All_Years_PAD_min))
+     
+#Plot missing values with imputeTS package
+    #min
+     as.ts(All_Years_PAD_min$Kitchen) %>% plotNA.distribution()
+    #hours
+     as.ts(All_Years_PAD_hour$Kitchen_No)  %>% plotNA.distribution()
+    
+     #days
+     as.ts(All_Years_PAD_day$Kitchen_No)  %>% plotNA.distribution()
+     
+     
+     #All_Years_PAD %>% select(DateTime, Kitchen) %>% thicken('hour') %>% group_by(DateTime_hour)  %>% pad(by="DateTime") 
+      
+       
+        plotNA.distribution(as.ts(All_Years_PAD_hour$Kitchen_No))
+     
+     
+     
+       
+       
+       #All_Years_PAD_hour_2 <- All_Years_PAD %>% thicken('hour') %>% pad(by="DateTime_hour", break_above = 3)
+       
+       # summary(is.na(All_Years_PAD_hour_2))
+       # 
+       # All_Years_PAD_hour_2 %>% group_by(year) %>% plotNA.distribution()
+       # 
+       # plotNA.distribution(All_Years_PAD_hour_2$Kitchen)
+       # 
+       as.ts(All_Years_PAD_hour$Kitchen_No)  %>% plotNA.distribution( cexPoints = 2)
+       
+       
+       
+       
+#Visualizing a single day (09/01/2008)
+      
+houseDay <- filter(All_Years, year == 2008 & month == 1 & day == 9)
+
+## Plot the kitchen
+plot_ly(houseDay, x = ~houseDay$DateTime, y = ~houseDay$Kitchen, type = 'scatter', mode = 'lines')
+      
+
+## Plot sub-meter 1, 2 and 3 with title, legend and labels - All observations
+plot_ly(houseDay, x = ~houseDay$DateTime, y = ~houseDay$Kitchen, name = 'Kitchen', type = 'scatter', mode = 'lines') %>%
+add_trace(y = ~houseDay$Laundry, name = 'Laundry Room', mode = 'lines') %>%
+add_trace(y = ~houseDay$AC_Heater, name = 'Water Heater & AC', mode = 'lines') %>%
+layout(title = "Power Consumption January 9th, 2008",
+xaxis = list(title = "Time"),
+yaxis = list (title = "Power (watt-hours)")) 
+
+
+#Reducing granularity
+
+## Subset the 9th day of January 2008 - 10 Minute frequency
+houseDay10min <- filter(All_Years, year == 2008 & month == 1 & day == 9 & (minute == 0 | minute == 10 | minute == 20 | minute == 30 | minute == 40 | minute == 50))
+
+## Plot sub-meter 1, 2 and 3 with title, legend and labels - 10 Minute frequency
+plot_ly(houseDay10min, x = ~houseDay10min$DateTime, y = ~houseDay10min$Kitchen, name = 'Kitchen', type = 'scatter', mode = 'lines') %>%
+add_trace(y = ~houseDay10min$Laundry, name = 'Laundry Room', mode = 'lines') %>%
+add_trace(y = ~houseDay10min$AC_Heater, name = 'Water Heater & AC', mode = 'lines') %>%
+layout(title = "Power Consumption January 9th, 2008",
+xaxis = list(title = "Time"),
+yaxis = list (title = "Power (watt-hours)"))
+       
 ```

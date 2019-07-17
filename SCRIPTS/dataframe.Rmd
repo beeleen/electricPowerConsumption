@@ -9,6 +9,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 pacman::p_load(ggplot2, dplyr, RMySQL, lubridate, psych, tidyr, plotly)
+
+#remove scientific notation in r
 options(scipen=999)
 ## Create a database connection 
 con = dbConnect(MySQL(), user='deepAnalytics', password='Sqltask1234!', dbname='dataanalytics2018', host='data-analytics-2018.cbrosir2cswx.us-east-1.rds.amazonaws.com')
@@ -74,7 +76,9 @@ summary(All_Years)
 
 
 
+```
 
+```{r}
 #PREPROCESSING
 
 ## Combine Date and Time attribute values in a new attribute column with Paste
@@ -106,7 +110,9 @@ dataByYears$hour <- hour(dataByYears$DateTime)
 dataByYears$minute <- minute(dataByYears$DateTime)
 
 
+```
 
+```{r}
 #EXPLORATION OF THE DATA. First approach
  summary(dataByYears) 
  describe(dataByYears) #from the psych package
@@ -129,6 +135,10 @@ names(dataByYears)[names(dataByYears) == "Sub_metering_3"] <- "AC_Heater"
  #GATHERING ALL SUB_METERINGS
  sub_meterings_All <- dataByYears %>% gather(Sub_metering, Value, Kitchen:AC_Heater)
  
+ 
+```
+ 
+```{r}
  #VISUALIZATIONS. First approach
  
  #1Var
@@ -161,6 +171,10 @@ names(dataByYears)[names(dataByYears) == "Sub_metering_3"] <- "AC_Heater"
  #qqPlot(lm(prestige ~ income + education + type, data=Duncan),envelope=.99)
  
  
+```
+
+```{r}
+
  #EXPLORATION OF THE DATA. Second approach
  
  Values_n <-  sub_meterings_All %>% group_by(Value) %>% summarise (n = n()) %>% mutate(freq = n / sum(n))
@@ -172,7 +186,9 @@ names(dataByYears)[names(dataByYears) == "Sub_metering_3"] <- "AC_Heater"
  Values_not_0_1_n
  
  
+```
  
+```{r}
  
 #VISUALIZATIONS. Second approach
 #2Vars
@@ -203,12 +219,14 @@ names(dataByYears)[names(dataByYears) == "Sub_metering_3"] <- "AC_Heater"
  #Density
  ggplot(Values_not_0_1, aes(Value, fill = Sub_metering)) + geom_density(alpha = 0.2)
  
- #remove scientific notation in r
+ 
  
  #scale x breaks, xlim
  
  
- 
+```
+
+```{r}
  #EXPLORATION OF THE DATA. Thirg approach
 
  
@@ -226,7 +244,7 @@ names(dataByYears)[names(dataByYears) == "Sub_metering_3"] <- "AC_Heater"
  
  #I found that there is a peak in AC_Heater in 18 watts/hour. Also 17 and 19 are hight, so that might correspond to the oscillation of watts in the turning on and off. 
 
- # 
+ 
  
  
 ```
