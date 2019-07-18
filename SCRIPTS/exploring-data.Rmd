@@ -18,11 +18,11 @@ options(scipen=999)
 con = dbConnect(MySQL(), user='deepAnalytics', password='Sqltask1234!', dbname='dataanalytics2018', host='data-analytics-2018.cbrosir2cswx.us-east-1.rds.amazonaws.com')
 
 #Query 
-yr_2006 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2006")
-yr_2007 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2007")
-yr_2008 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2008")
-yr_2009 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2009")
-yr_2010 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3 FROM yr_2010")
+yr_2006 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3, Global_active_power, Global_reactive_power FROM yr_2006")
+yr_2007 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3, Global_active_power, Global_reactive_power FROM yr_2007")
+yr_2008 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3, Global_active_power, Global_reactive_power FROM yr_2008")
+yr_2009 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3, Global_active_power, Global_reactive_power FROM yr_2009")
+yr_2010 <- dbGetQuery(con, "SELECT Date, Time, Sub_metering_1, Sub_metering_2, Sub_metering_3, Global_active_power, Global_reactive_power FROM yr_2010")
 
 #Combine tables into one dataframe
 All_Years <- bind_rows(yr_2007, yr_2008, yr_2009, yr_2010)
@@ -35,7 +35,7 @@ All_Years <- bind_rows(yr_2007, yr_2008, yr_2009, yr_2010)
 All_Years <-cbind(All_Years,paste(All_Years$Date,All_Years$Time), stringsAsFactors=FALSE)
 
 ## Give the new attribute in the 6th column a header name change the name
-colnames(All_Years)[6] <-"DateTime"
+colnames(All_Years)[8] <-"DateTime"
 
 ## And move the DateTime attribute within the dataset
 All_Years <- All_Years[,c(ncol(All_Years), 1:(ncol(All_Years)-1))]
@@ -104,10 +104,9 @@ Plot_All_Years_Comb_Submeterings %>%  ggplotly()
  boxplot(Laundry~year,data=All_Years) 
  boxplot(AC_Heater~year,data=All_Years) 
  
-
-  
+ #BoxPlot for the data gathered by submetters
  ggplot(All_Years_Comb_Submeterings, aes(Sub_metering, Value )) + geom_boxplot() + coord_flip() + facet_grid(.~year)
- 
+
 #Statistics
 summary(All_Years) 
 describe(All_Years) 
