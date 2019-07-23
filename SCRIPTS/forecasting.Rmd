@@ -1,0 +1,237 @@
+---
+title: "forecasting"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+if (!require(fpp2)) {
+  devtools::install_github("robjhyndman/fpp2-package")
+} else{
+  library(fpp2)
+}
+install.packages('fpp2', dependencies = TRUE)
+
+stl <- auscafe %>% stl(s.window = "periodic")
+apply(stl$time.series, 2, var)/var(auscafe)
+
+#remove the variance
+logauscafe <- log(auscafe)
+autoplot(log(auscafe))
+autoplot(logauscafe)
+
+#remove the trend
+diffauscafe <- diff(logauscafe)
+autoplot(diffauscafe)
+
+autoplot(diffauscafe %>% stl(s.window = "periodic"))
+#apply(diffauscafe$time.series, 2, var)/var(diffauscafe)
+
+
+#remove seasonality #Option 1 Seasonal adjustment
+decompauscafe <- decompose(diffauscafe)
+noseasonalauscafe <- diffauscafe %>% stl(s.window = "periodic") %>% seasadj()
+autoplot(noseasonalauscafe)
+autoplot(noseasonalauscafe  %>% stl(s.window = "periodic"))
+
+#remove seasonality #Option 2 Remove the Seasonal component
+$seasonal
+
+#Plot the ACF
+ggAcf(noseasonalauscafe)
+#Plot the PACF
+ggPacf(noseasonalauscafe)
+
+ggtsdisplay(noseasonalauscafe)
+
+
+#Arima model ("A" uppercase) with 12, 0, 0
+Arimaauscafe <-  noseasonalauscafe %>% Arima(,order=c(12,0,0))
+autoplot(Arimaauscafe)
+
+#Arima model ("A" uppercase) with 2, 0, 0
+Arimaauscafe_2 <-  noseasonalauscafe %>% Arima(,order=c(2,0,0))
+
+#Autoarima
+ autoArimaauscafe <- auto.arima(noseasonalauscafe)
+ 
+ 
+ 
+ 
+ 
+ #Forecasting
+ noseasonalauscafe_train <- window(noseasonalauscafe, end = c(2016,01)) 
+ #starts in 01/2007 & ends in 01/2010
+ noseasonalauscafe_test <-  window(noseasonalauscafe, start=c(2016, 02)) #starts in 02/2010 & ends in 11/2010
+
+ mod1 <- noseasonalauscafe_train %>% Arima(,order = c(12,0,0))
+ mod2 <- noseasonalauscafe_train %>% Arima(,order = c(2,0,0))
+ mod3 <- noseasonalauscafe_train %>% auto.arima()
+ #autoplot(forecast(Arimaauscafe, h=length(noseasonalauscafe_test)) + autolayer(noseasonalauscafe_test, color="red", PI=FALSE))
+ 
+ autoplot(noseasonalauscafe_test, color="black") + autolayer(forecast(mod1, h=length(noseasonalauscafe_test)), series="ARIMA 12,0,0", PI=FALSE, color="blue") + autolayer(forecast(mod2, h=length(noseasonalauscafe_test)), PI=FALSE, color="green")+ autolayer(forecast(mod3, h=length(noseasonalauscafe_test)), PI=FALSE, color="yellow")
+ 
+ #Mean absolute percentage error / Mean Absolute ... / Autocorrelation Function
+ accuracy(forecast(mod3, h=20), noseasonalauscafe_test)
+ 
+ checkresiduals(forecast(mod3, h=20))
+```
+
+
+
+
+```{r Models. First approach} 
+
+ #Find the sum of the submeterings
+All_Submeterings = All_Years$Kitchen+All_Years$Laundry+All_Years$AC_Heater
+#Assign it to a new column
+All_Years$All_Submeterings <- All_Submeterings
+
+#Find the energy not measured by the submeters  (Global-All_Sub) 
+Unrecorded <- All_Years$Global_active_power*1000/60 -  All_Submeterings
+ All_Years$Unrecorded <- Unrecorded
+    
+#Group by month and summarise the totals
+All_Years_YM <-  All_Years %>% group_by(year, month) %>% summarise(Active_energy=sum(Global_active_power*1000/60), 
+                                                   Total_Kitchen=sum(Kitchen), Total_Laundry=sum(Laundry), Total_AC_Heater=sum(AC_Heater), Total_Recorded=sum(All_Submeterings), Total_unrecorded=sum(Unrecorded))
+    
+#Group by day (the same just changing the group_by)
+All_Years_days <-  All_Years %>% group_by(year, month, day) %>% summarise(Active_energy=sum(Global_active_power*1000/60), 
+                                                   Total_Kitchen=sum(Kitchen), Total_Laundry=sum(Laundry), Total_AC_Heater=sum(AC_Heater), Total_Recorded=sum(All_Submeterings), Total_unrecorded=sum(Unrecorded))
+                                                   
+                                                   
+
+#Convert from dataframe to Time series object using the Active Energy. Frequency is the seasonal periods (More info here: https://robjhyndman.com/hyndsight/seasonal-periods/)
+
+#Time series by day
+dayts <- ts(All_Years_days$Active_energy, frequency = 365, start = c(2007,01)) #If the end it's not specified it will cover everything automatically.
+
+#Time series by month 
+monthts <- ts(All_Years_YM$Active_energy, frequency = 12, start = c(2007,01))
+
+
+#Seasonal Decomposition of Time Series
+strl_monthts <- monthts %>% stl(s.window = "periodic")
+strl_dayts <- dayts %>% stl(s.window = "periodic")
+        
+#Plots        
+autoplot(strl_dayts)
+autoplot(strl_monthts)
+
+#The reason to plot in different frequencies is in order to choose the best granularity. 
+
+#In the month plot we see that the seasonal component is the one explaining the...?
+
+#While for the day the Remainder is the one explaining the...? For that reason it isn't very useful
+      
+
+#Split into Train and Test Set.
+
+#By month
+Activemonth_train <- window(monthts, end = c(2010,01)) 
+#starts in 01/2007 & ends in 01/2010
+Activemonth_test <-  window(monthts, start=c(2010, 02)) #starts in 02/2010 & ends in 11/2010
+ 
+#By day
+Activeday_train <- window(dayts, end = c(2010,01)) 
+Activeday_test <- window(dayts, start=c(2010, 02)) 
+
+#Translate the Time series' train set to HoltWinters
+activemonth_HW <- HoltWinters(Activemonth_train)
+activeday_HW <- HoltWinters(Activeday_train)
+
+#Forecast
+activemonth_HW_forecast <- forecast(activemonth_HW, h=10) #10monthts for forecast
+activeday_HW_forecast <- forecast(activeday_HW, length(Activeday_test)) #10monthts for forecast
+
+#Plot results
+#by month
+autoplot(Activemonth_test) + autolayer(activemonth_HW_forecast$mean, series="HW", PI=FALSE)            
+#by day
+autoplot(Activeday_test) + autolayer(activeday_HW_forecast$mean, series="HW", PI=FALSE)  
+
+
+accuracy(activemonth_HW_forecast)
+apply(strl_monthts$time.series, 2, var)/var(monthts) 
+
+
+
+
+# 
+
+# 
+# for (i in groupLists) {
+#   gran[[i]] <- df %>% thicken(groupLists[i], colname = i) %>% group_by_at(i) %>% summarise(SumKitchen=sum(Kitchen))
+#   
+# }
+
+#Create new columns using Thicken 
+All_Years$Month_th <- All_Years %>% select(DateTime) %>% thicken('month')
+All_Years$Week_th <- All_Years %>% select(DateTime) %>% thicken('week')
+All_Years$Day_th <- All_Years %>% select(DateTime) %>% thicken('day')
+All_Years$Hour_th <- All_Years %>% select(DateTime) %>% thicken('hour')
+
+#Converting from dataframe to vector
+All_Years$Month_th <- All_Years$Month_th$DateTime_month
+All_Years$Week_th <- All_Years$Week_th$DateTime_week
+All_Years$Day_th <- All_Years$Day_th$DateTime_day
+All_Years$Hour_th <- All_Years$Hour_th$DateTime_hour
+
+#Loop for choosing the best granularity
+groupThickenBy <- c("Month_th", "Week_th", "Day_th", "Hour_th")
+gran <- list()
+
+for (i in groupThickenBy) {
+  gran[[i]] <- All_Years %>% group_by_at(i) %>% summarise(Active_energy=sum(Global_active_power*1000/60), 
+                                                   Total_Kitchen=sum(Kitchen), Total_Laundry=sum(Laundry), Total_AC_Heater=sum(AC_Heater), Total_Recorded=sum(All_Submeterings), Total_unrecorded=sum(Unrecorded))
+}
+
+#Plot variables 
+lapply(gran, function(x) ggplot(data = x, aes(Total_Kitchen)) + geom_density())
+
+gran[["Month_th"]]
+ByFrequencies = 12
+#ByFrequencies = c(12, 52, 365, 8766)
+
+for (i in gran) { 
+  for (j in ByFrequencies) { 
+    lapply(gran, function(x) ts(data=x, frequency = j, start = c(2007,01)) )
+  }
+  }
+  
+
+group<- c("year", "month", "week", "day")
+granularity<- list()
+frequencies<- c(1, 12, 52, 365.25)
+data_year2 <-All_Years %>% select(c("DateTime","Global_active_power","Kitchen",
+                                     "Laundry","AC_Heater")) %>% as_tibble()
+
+data_year3 <- data_year2
+
+for (i in group) {  
+  #floordate = is the same as thicken
+  data_year3$DateTime <- floor_date(x = data_year2$DateTime, unit = i)  
+  granularity[[i]] <- as.ts(data_year3 %>% group_by(DateTime) %>%
+  summarise(active_power= sum(Global_active_power), sub1 = sum(Kitchen), sub2 = sum(Laundry), sub3 = sum(AC_Heater)),
+ start = c(2007,01), frequency = frequencies[i])
+}
+
+str(granularity)
+strl_monthts <- monthts %>% stl(s.window = "periodic")
+  
+#XXTime series by day
+#dayts <- ts(All_Years_days$Active_energy, frequency = 365, start = c(2007,01)) #If the end it's not specified it will cover everything automatically.
+
+#XXTime series by month 
+#monthts <- ts(All_Years_YM$Active_energy, frequency = 12, start = c(2007,01))
+str(monthts)
+
+#Seasonal Decomposition of Time Series
+strl_monthts <- monthts %>% stl(s.window = "periodic")
+strl_dayts <- dayts %>% stl(s.window = "periodic")
+        
+```
